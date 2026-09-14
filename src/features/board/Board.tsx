@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { fetchApplicants, patchApplicant } from '../mock-api'
 import { stages, type Applicant, type Stage } from '../applicants'
@@ -22,7 +22,7 @@ let nextOperationId = 0
 const applicantsAtom = atom<Applicant[]>([])
 const loadingAtom = atom(true)
 const errorAtom = atom<string | null>(null)
-const selectedApplicantAtom = atom<Applicant | null>(null)
+const selectedApplicantIdAtom = atom<string | null>(null)
 const toastAtom = atom<string | null>(null)
 const searchQueryAtom = atom('')
 const debouncedSearchQueryAtom = atom('')
@@ -58,6 +58,11 @@ const filteredApplicantsAtom = atom((get): Applicant[] => {
   })
 })
 
+const selectedApplicantAtom = atom((get) => {
+  const selectedId = get(selectedApplicantIdAtom)
+  return get(applicantsAtom).find((applicant) => applicant.id === selectedId) ?? null
+})
+
 const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
   const grouped: Record<Stage, Applicant[]> = { Applied: [], Screening: [], Interview: [], Offer: [] }
   get(filteredApplicantsAtom).forEach((applicant) => grouped[applicant.stage].push(applicant))
@@ -67,15 +72,19 @@ const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
 const jobOptionsAtom = atom((get) => Array.from(new Set(get(applicantsAtom).map((applicant) => applicant.role))).sort())
 
 function ApplicantCard({ applicant }: { applicant: Applicant }) {
-  const setSelectedApplicant = useSetAtom(selectedApplicantAtom)
+  const setSelectedApplicantId = useSetAtom(selectedApplicantIdAtom)
+  const openDetails = (): void => setSelectedApplicantId(applicant.id)
+  const handleCardKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (event.target !== event.currentTarget) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      openDetails()
+    }
+  }
 
   return (
-    <li className="group rounded-lg border border-brand/5 bg-white p-4 shadow-[0_2px_8px_rgba(24,36,50,0.02)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_4px_12px_rgba(24,36,50,0.06)]">
-      <button
-        type="button"
-        onClick={() => setSelectedApplicant(applicant)}
-        className="w-full text-left focus:outline-none focus:ring-2 focus:ring-brand/20"
-      >
+    <li onClick={openDetails} className="group rounded-lg border border-brand/5 bg-white p-4 shadow-[0_2px_8px_rgba(24,36,50,0.02)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_4px_12px_rgba(24,36,50,0.06)]">
+      <div role="button" tabIndex={0} onKeyDown={handleCardKeyDown} className="focus:outline-none focus:ring-2 focus:ring-brand/20">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h4 className="font-semibold tracking-tight text-black">{applicant.name}</h4>
@@ -83,7 +92,7 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
           </div>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-black/55">{applicant.initials}</span>
         </div>
-      </button>
+      </div>
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-brand/5 pt-3 text-[11px] text-black/45">
         <div className="flex flex-col min-w-0">
           <span>{applicant.applied}</span>
@@ -103,6 +112,7 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
   const [isSaving, setIsSaving] = useState(false)
   const currentIndex = stages.indexOf(applicant.stage)
   const nextStage = stages[currentIndex + 1]
+  const nextStageLabel = boardColumns.find((column) => column.stage === nextStage)?.label
 
   if (!nextStage) return null
 
@@ -123,11 +133,22 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
   }
 
   return <span className="flex shrink-0 items-center gap-2">
-    <button type="button" onClick={handleMove} disabled={isSaving} className="rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/50 disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStage}로 이동`}</button>
+    <button type="button" onClick={handleMove} onKeyDown={(event) => event.stopPropagation()} disabled={isSaving} className="rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/50 disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStageLabel} 단계로 이동`}</button>
   </span>
 }
 
 function ApplicantDetails({ applicant, onClose }: { applicant: Applicant; onClose: () => void }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeButtonRef.current?.focus()
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-brand/20 p-6" role="presentation" onClick={onClose}>
       <section role="dialog" aria-modal="true" aria-labelledby="applicant-details-title" className="w-full max-w-md rounded-xl border border-brand/5 bg-white p-6 shadow-[0_12px_32px_rgba(24,36,50,0.12)]" onClick={(event) => event.stopPropagation()}>
@@ -136,7 +157,7 @@ function ApplicantDetails({ applicant, onClose }: { applicant: Applicant; onClos
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Applicant details</p>
             <h2 id="applicant-details-title" className="mt-2 text-xl font-bold tracking-tight text-black">{applicant.name}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-sm text-black/50 hover:bg-slate-100 hover:text-black focus:outline-none focus:ring-2 focus:ring-brand/20" aria-label="상세보기 닫기">닫기</button>
+          <button ref={closeButtonRef} type="button" onClick={onClose} className="rounded-md px-2 py-1 text-sm text-black/50 hover:bg-slate-100 hover:text-black focus:outline-none focus:ring-2 focus:ring-brand/20" aria-label="상세보기 닫기">닫기</button>
         </div>
         <dl className="mt-6 space-y-3 text-sm">
           <div className="flex justify-between gap-4 border-b border-brand/5 pb-3"><dt className="text-black/50">직무</dt><dd className="font-medium text-black">{applicant.role}</dd></div>
@@ -167,7 +188,8 @@ export default function Board() {
   const [jobFilter, setJobFilter] = useAtom(jobFilterAtom)
   const [loading, setLoading] = useAtom(loadingAtom)
   const [error, setError] = useAtom(errorAtom)
-  const [selectedApplicant, setSelectedApplicant] = useAtom(selectedApplicantAtom)
+  const selectedApplicant = useAtomValue(selectedApplicantAtom)
+  const setSelectedApplicantId = useSetAtom(selectedApplicantIdAtom)
   const toast = useAtomValue(toastAtom)
   const setToast = useSetAtom(toastAtom)
   const applicantsByStage = useAtomValue(applicantsByStageAtom)
@@ -239,7 +261,7 @@ export default function Board() {
         </div>}
       </section>
       {toast && <RollbackToast message={toast} onClose={() => setToast(null)} />}
-      {selectedApplicant && <ApplicantDetails applicant={selectedApplicant} onClose={() => setSelectedApplicant(null)} />}
+      {selectedApplicant && <ApplicantDetails applicant={selectedApplicant} onClose={() => setSelectedApplicantId(null)} />}
     </main>
   )
 }

@@ -53,18 +53,34 @@ describe('Board', () => {
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(50))
   })
 
-  it('opens applicant details from a focusable card button', async () => {
+  it('opens applicant details, moves focus, and closes with Escape', async () => {
     render(<Provider><Board /></Provider>)
     await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
 
-    const firstCard = within(screen.getByRole('list', { name: '서류검토 지원자 목록' })).getAllByRole('button')[0]
-    expect(firstCard).toHaveAttribute('type', 'button')
+    const firstCard = within(screen.getByRole('list', { name: '서류검토 지원자 목록' })).getAllByRole('listitem')[0].querySelector('[role="button"]') as HTMLElement
+    expect(firstCard).toHaveAttribute('role', 'button')
+    expect(firstCard).toHaveAttribute('tabindex', '0')
     firstCard.focus()
     expect(firstCard).toHaveFocus()
     fireEvent.click(firstCard)
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Ava Rodriguez' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: '상세보기 닫기' })).toHaveFocus())
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('closes applicant details when the backdrop is clicked', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    const firstCard = within(screen.getByRole('list', { name: '서류검토 지원자 목록' })).getAllByRole('listitem')[0].querySelector('[role="button"]') as HTMLElement
+    fireEvent.click(firstCard)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('presentation'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('moves a card with the keyboard-accessible next-stage button', async () => {
@@ -73,7 +89,7 @@ describe('Board', () => {
 
     const cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li')
     expect(cardItem).not.toBeNull()
-    const moveButton = within(cardItem as HTMLElement).getByRole('button', { name: 'Screening로 이동' })
+    const moveButton = within(cardItem as HTMLElement).getByRole('button', { name: '면접 단계로 이동' })
     moveButton.focus()
     expect(moveButton).toHaveFocus()
     fireEvent.keyDown(moveButton, { key: 'Enter' })
@@ -90,7 +106,7 @@ describe('Board', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
 
     const cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
-    fireEvent.click(within(cardItem).getByRole('button', { name: 'Screening로 이동' }))
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
 
     await waitFor(() => expect(within(screen.getByRole('list', { name: '면접 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument())
     resolvePatch?.(applicants[0])
@@ -102,7 +118,7 @@ describe('Board', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
 
     const cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
-    fireEvent.click(within(cardItem).getByRole('button', { name: 'Screening로 이동' }))
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('단계 이동에 실패해 이전 상태로 되돌렸습니다.'))
     expect(within(screen.getByRole('list', { name: '서류검토 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument()
@@ -117,7 +133,7 @@ describe('Board', () => {
 
     vi.useFakeTimers()
     const cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
-    fireEvent.click(within(cardItem).getByRole('button', { name: 'Screening로 이동' }))
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
     await act(async () => {
       await Promise.resolve()
     })
@@ -139,11 +155,11 @@ describe('Board', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
 
     const firstCard = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
-    fireEvent.click(within(firstCard).getByRole('button', { name: 'Screening로 이동' }))
+    fireEvent.click(within(firstCard).getByRole('button', { name: '면접 단계로 이동' }))
     await waitFor(() => expect(within(screen.getByRole('list', { name: '면접 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument())
 
     const secondCard = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
-    fireEvent.click(within(secondCard).getByRole('button', { name: 'Interview로 이동' }))
+    fireEvent.click(within(secondCard).getByRole('button', { name: '처우협의 단계로 이동' }))
     await waitFor(() => expect(within(screen.getByRole('list', { name: '처우협의 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument())
 
     rejectFirst?.(new Error('old request failed'))
