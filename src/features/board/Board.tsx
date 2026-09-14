@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { List, type RowComponentProps } from 'react-window'
 import { fetchApplicants, patchApplicant } from '../mock-api'
 import { stages, type Applicant, type Stage } from '../applicants'
 import { moveApplicantToStage } from './movement'
@@ -94,7 +95,13 @@ const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
 
 const jobOptionsAtom = atom((get) => Array.from(new Set(get(applicantsAtom).map((applicant) => applicant.role))).sort())
 
-function ApplicantCard({ applicant }: { applicant: Applicant }) {
+type ApplicantCardProps = {
+  applicant: Applicant
+  style?: React.CSSProperties
+  ariaAttributes?: RowComponentProps['ariaAttributes']
+}
+
+function ApplicantCard({ applicant, style, ariaAttributes }: ApplicantCardProps) {
   const setSelectedApplicantId = useSetAtom(selectedApplicantIdAtom)
   const openDetails = (): void => setSelectedApplicantId(applicant.id)
   const handleCardKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
@@ -106,7 +113,7 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
   }
 
   return (
-    <li onClick={openDetails} className="group rounded-lg border border-brand/5 bg-white p-4 shadow-[0_2px_8px_rgba(24,36,50,0.02)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_4px_12px_rgba(24,36,50,0.06)]">
+    <li {...ariaAttributes} style={style} onClick={openDetails} className="group box-border rounded-lg border border-brand/5 bg-white p-4 shadow-[0_2px_8px_rgba(24,36,50,0.02)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_4px_12px_rgba(24,36,50,0.06)]">
       <div role="button" tabIndex={0} onKeyDown={handleCardKeyDown} className="focus:outline-none focus:ring-2 focus:ring-brand/20">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -125,6 +132,25 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
       </div>
     </li>
   )
+}
+
+function ApplicantRow({ applicants, index, style, ariaAttributes }: RowComponentProps<{ applicants: Applicant[] }>) {
+  return <ApplicantCard applicant={applicants[index]} style={style} ariaAttributes={ariaAttributes} />
+}
+
+function ApplicantList({ applicants, label }: { applicants: Applicant[]; label: string }) {
+  return <List
+    tagName="ul"
+    className="mt-5"
+    defaultHeight={640}
+    overscanCount={6}
+    rowComponent={ApplicantRow}
+    rowCount={applicants.length}
+    rowHeight={148}
+    rowProps={{ applicants }}
+    style={{ height: 640, width: '100%' }}
+    aria-label={`${label} 지원자 목록`}
+  />
 }
 
 function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
@@ -322,9 +348,7 @@ export default function Board() {
                 <div><h3 className="text-base font-semibold tracking-tight text-black">{label}</h3><p className="mt-1 text-xs font-medium text-black/50">{description}</p></div>
                 <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-black/50" aria-label="지원자 수">{stageApplicants.length}</span>
               </div>
-              <ul className="mt-5 space-y-3" aria-label={`${label} 지원자 목록`}>
-                {stageApplicants.map((applicant) => <ApplicantCard key={applicant.id} applicant={applicant} />)}
-              </ul>
+              <ApplicantList applicants={stageApplicants} label={label} />
             </section>
           })}
         </div>}
