@@ -1,5 +1,5 @@
-## 0. 프로젝트 셋업 (chore: init)
-### 프롬프트
+## [프로젝트 셋업] (chore: init)
+### 프롬프트 1
 Vite + React + TypeScript 프로젝트를 새로 만들고, 상태관리는 Jotai, 스타일은 Tailwind로 세팅한다. 라우팅은 필요 없다.(단일 보드 페이지). 폴더는 기능 단위(features/board, features/mock-api, features/applicants)로 분리하되, 규칙대로 불필요하게 파일을 쪼개지 않는다.
 ### AI 출력 요지
 - boiler plate 생성
@@ -11,8 +11,8 @@ Vite + React + TypeScript 프로젝트를 새로 만들고, 상태관리는 Jota
 - 어떻게 알아봤나 (직접 재현·테스트·정독)
 - 그대로 채택
 
-## 1. style (chore: 업데이트된 비주얼 가이드 적용)
-### 프롬프트
+## [style] (chore: 업데이트된 비주얼 가이드 적용)
+### 프롬프트 2
 `frontend-ponytail` 스킬의 컬러/배경 규칙이 업데이트됐다. 지금까지 만든 board-layout, card-list, detail-panel 컴포넌트를 다시 훑어서, 업데이트된 스킬의 컬러 토큰(배경색, 텍스트 컬러 등)에 맞게 Tailwind 클래스만 교체한다. 레이아웃 구조나 로직은 건드리지 말고 스타일 클래스만 최소로 바꾼다. 모든 텍스트는 #000을 유지, 모노톤을 유지한다. 쓸데없는 컬러는 넣지않는다. 
 ### AI 출력 요지
 임의 hex 색상 제거
@@ -26,8 +26,8 @@ Vite + React + TypeScript 프로젝트를 새로 만들고, 상태관리는 Jota
 ### 리뷰 / 검증
 - 로컬 서버 확인
 
-## 2. Mock API (feat: mock-api 생성)
-### 프롬프트
+## [Mock API] (feat: mock-api 생성)
+### 프롬프트 3
 지원자 mock 데이터(이름, 직무, 지원일, 현재 단계)를 200건 생성하는 mock API 모듈을 만들어줘. 각 요청에 200~800ms 랜덤 지연을 주고, 쓰기 요청(PATCH 등)은 약 15% 확률로 실패(reject)하도록 구현해줘. localStorage로 persist. 응답 타입은 any 없이 명확하게 정의해줘.
 ### AI 출력 요지
 지원자 mock API를 구현
@@ -41,6 +41,26 @@ Vite + React + TypeScript 프로젝트를 새로 만들고, 상태관리는 Jota
 - 타입 정의에 any가 없는지 코드 확인
 - 함께 제공된 Vitest 테스트가 지연/실패 시뮬레이션의 성공·실패 케이스를 실제로 검증하는지(형식적인 테스트인지 아닌지)
 - 새로고침 후에도 데이터가 유지되는지
+
+## [board-layout] (feat: 단계별 컬럼 레이아웃 구성)
+### 프롬프트 4
+서류검토, 면접, 처우협의, 최종합격/불합격 4개 컬럼으로 구성된 칸반 보드 레이아웃을 만든다. 아직 카드 데이터는 연결하지 않는다. Tailwind로 현대적인 여백과 라운딩을 적용한다. 각 컬럼은 <section role="region" aria-label="{단계명}">처럼 시맨틱하게 마크업해서, 나중에 키보드/스크린리더 탐색의 기준점이 되게 한다.
+### AI 출력 요지
+카드 데이터 렌더링 제거
+각 컬럼을 <section role="region" aria-label="단계명">으로 구성
+bg-white, bg-slate-50/60, border-brand/5, rounded-xl, p-6 기반 Tailwind 스타일 적용
+반응형 레이아웃
+모바일: 1열
+태블릿: 2열
+데스크톱: 4열
+컬럼별 빈 상태 표시
+접근성 기준점 테스트 추가
+### 리뷰 / 검증 
+반응형으로 깨지지 않는지
+Tailwind 클래스가 투박하지 않은지 (스킬 4번 항목: 여백/라운딩/컬러 감각)
+컴포넌트를 규칙과 달리 미리 잘게 쪼개놓지 않았는지
+컬럼이 div만으로 되어있지 않고 role/aria-label 등 의미가 담긴 마크업인지
+
 
 
 <!-- ## [stage-move] 카드 단계 이동

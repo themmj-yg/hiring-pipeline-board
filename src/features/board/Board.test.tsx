@@ -1,26 +1,15 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { Provider } from 'jotai'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import Board from './Board'
 
 describe('Board', () => {
-  it('filters candidates by name or role', () => {
-    render(<Provider><Board /></Provider>)
+  it('renders four semantic pipeline regions without applicant cards', () => {
+    render(<Board />)
 
-    fireEvent.change(screen.getByPlaceholderText('Search candidates'), { target: { value: 'frontend' } })
-
-    expect(screen.getByText('Liam Chen')).toBeInTheDocument()
-    expect(screen.getByText('Noah Williams')).toBeInTheDocument()
-    expect(screen.queryByText('Ava Rodriguez')).not.toBeInTheDocument()
-  })
-
-  it('moves a candidate to the next stage', async () => {
-    render(<Provider><Board /></Provider>)
-
-    const avaCard = screen.getByText('Ava Rodriguez').closest('article')
-    expect(avaCard).not.toBeNull()
-    fireEvent.click(within(avaCard as HTMLElement).getByRole('button', { name: 'Move to Screening →' }))
-
-    await waitFor(() => expect(screen.getByText('Ava Rodriguez').closest('section')).toHaveTextContent('Screening'))
+    expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '면접' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '처우협의' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '최종합격/불합격' })).toBeInTheDocument()
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
   })
 })
