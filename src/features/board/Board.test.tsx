@@ -38,6 +38,22 @@ describe('Board', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(200)
   })
 
+  it('shows a loading state while the API request is pending', () => {
+    vi.mocked(fetchApplicants).mockReturnValueOnce(new Promise(() => undefined))
+    render(<Provider><Board /></Provider>)
+
+    expect(screen.getByText('지원자 목록을 불러오는 중입니다.')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '서류검토' })).not.toBeInTheDocument()
+  })
+
+  it('shows an API error state when loading fails', async () => {
+    vi.mocked(fetchApplicants).mockRejectedValueOnce(new Error('network'))
+    render(<Provider><Board /></Provider>)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('지원자 목록을 불러오지 못했습니다.')
+    expect(screen.queryByRole('region', { name: '서류검토' })).not.toBeInTheDocument()
+  })
+
   it('debounces name search and applies the job filter through the derived lists', async () => {
     render(<Provider><Board /></Provider>)
     await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
@@ -51,6 +67,16 @@ describe('Board', () => {
 
     fireEvent.change(screen.getByRole('searchbox', { name: '이름 검색' }), { target: { value: '' } })
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(50))
+  })
+
+  it('shows a zero-result state when filters match no applicants', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '이름 검색' }), { target: { value: 'does-not-exist' } })
+
+    expect(await screen.findByRole('status')).toHaveTextContent('검색 또는 필터 조건에 맞는 지원자가 없습니다.')
+    expect(screen.queryByRole('region', { name: '서류검토' })).not.toBeInTheDocument()
   })
 
   it('opens applicant details, moves focus, and closes with Escape', async () => {

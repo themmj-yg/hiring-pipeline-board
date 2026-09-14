@@ -192,6 +192,7 @@ export default function Board() {
   const setSelectedApplicantId = useSetAtom(selectedApplicantIdAtom)
   const toast = useAtomValue(toastAtom)
   const setToast = useSetAtom(toastAtom)
+  const filteredApplicants = useAtomValue(filteredApplicantsAtom)
   const applicantsByStage = useAtomValue(applicantsByStageAtom)
   const jobOptions = useAtomValue(jobOptionsAtom)
 
@@ -245,7 +246,8 @@ export default function Board() {
         </div>
         {loading && <p className="rounded-lg border border-dashed border-brand/10 bg-white p-6 text-center text-sm text-black/50">지원자 목록을 불러오는 중입니다.</p>}
         {error && <p role="alert" className="rounded-lg border border-dashed border-brand/10 bg-white p-6 text-center text-sm text-black/50">{error}</p>}
-        {!loading && !error && <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {!loading && !error && filteredApplicants.length === 0 && <p role="status" className="rounded-lg border border-dashed border-brand/10 bg-white p-6 text-center text-sm text-black/50">검색 또는 필터 조건에 맞는 지원자가 없습니다.</p>}
+        {!loading && !error && filteredApplicants.length > 0 && <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {boardColumns.map(({ stage, label, description }) => {
             const stageApplicants = applicantsByStage[stage]
             return <section key={stage} role="region" aria-label={label} className="min-h-96 rounded-xl border border-brand/5 bg-white p-6 shadow-[0_4px_12px_rgba(24,36,50,0.02)]">
