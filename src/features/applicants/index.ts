@@ -1,4 +1,5 @@
 export type Stage = 'Applied' | 'Screening' | 'Interview' | 'Offer'
+export type FinalOutcome = 'passed' | 'failed' | null
 
 export type Applicant = {
   id: string
@@ -10,6 +11,7 @@ export type Applicant = {
   accent: string
   applied: string
   updatedAt: number
+  finalOutcome: FinalOutcome
   tags: string[]
 }
 
@@ -36,6 +38,7 @@ export const applicants: Applicant[] = Array.from({ length: 200 }, (_, index) =>
     accent: '#f1f5f9',
     applied: `${(index % 28) + 1} days ago`,
     updatedAt: Date.now() - index * 60_000,
+    finalOutcome: stages[index % stages.length] === 'Offer' ? (index % 2 === 0 ? 'passed' : 'failed') : null,
     tags: role === 'Frontend Engineer' ? ['React', 'TypeScript'] : role === 'Product Designer' ? ['Figma', 'Systems'] : role === 'Product Manager' ? ['B2B', 'Growth'] : ['Research', 'UX'],
   }
 })

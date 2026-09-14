@@ -122,7 +122,7 @@ describe('Board', () => {
     fireEvent.keyDown(moveButton, { key: 'Enter' })
     fireEvent.click(moveButton)
 
-    await waitFor(() => expect(patchApplicant).toHaveBeenCalledWith('applicant-1', { stage: 'Screening' }))
+    await waitFor(() => expect(patchApplicant).toHaveBeenCalledWith('applicant-1', { stage: 'Screening', finalOutcome: null }))
     expect(moveApplicantToStage(applicants, 'applicant-1', 'Screening')[0].stage).toBe('Screening')
   })
 
@@ -136,7 +136,7 @@ describe('Board', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
-    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied' }))
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied', finalOutcome: null }))
     expect(within(screen.getByRole('list', { name: '서류검토 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument()
   })
 
@@ -151,6 +151,19 @@ describe('Board', () => {
     await waitFor(() => expect(within(interviewList).getAllByRole('listitem')[0]).toHaveTextContent('Mia Thompson'))
   })
 
+  it('splits final-stage movement into pass and fail actions with persisted outcomes', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '처우협의' })).toBeInTheDocument())
+
+    const sophiaCard = screen.getByText('Sophia Patel', { exact: true }).closest('li') as HTMLElement
+    expect(within(sophiaCard).getByRole('button', { name: '합격처리' })).toBeInTheDocument()
+    expect(within(sophiaCard).getByRole('button', { name: '불합격처리' })).toBeInTheDocument()
+    fireEvent.click(within(sophiaCard).getByRole('button', { name: '합격처리' }))
+
+    await waitFor(() => expect(patchApplicant).toHaveBeenCalledWith('applicant-3', { stage: 'Offer', finalOutcome: 'passed' }))
+    expect(within(screen.getByRole('list', { name: '최종합격/불합격 지원자 목록' })).getByText('최종합격')).toHaveClass('text-emerald-700')
+  })
+
   it('supports the same one-shot Undo action beside the board title', async () => {
     render(<Provider><Board /></Provider>)
     await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
@@ -161,7 +174,7 @@ describe('Board', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '실행취소' }))
     expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
-    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied' }))
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied', finalOutcome: null }))
   })
 
   it('replaces Undo information when a newer move succeeds', async () => {
@@ -177,7 +190,7 @@ describe('Board', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
 
-    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Screening' }))
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Screening', finalOutcome: null }))
     expect(within(screen.getByRole('list', { name: '면접 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument()
   })
 
@@ -203,7 +216,7 @@ describe('Board', () => {
     expect(screen.getByRole('button', { name: '실행취소' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
 
-    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied' }))
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied', finalOutcome: null }))
     expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
   })
 

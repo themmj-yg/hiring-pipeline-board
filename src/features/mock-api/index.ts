@@ -5,9 +5,9 @@ const MIN_DELAY_MS = 200
 const MAX_DELAY_MS = 800
 const WRITE_FAILURE_RATE = 0.15
 
-type ApplicantPatch = Partial<Pick<Applicant, 'name' | 'role' | 'location' | 'stage' | 'applied' | 'tags'>>
+type ApplicantPatch = Partial<Pick<Applicant, 'name' | 'role' | 'location' | 'stage' | 'applied' | 'tags' | 'finalOutcome'>>
 
-const cloneApplicants = (items: Applicant[]): Applicant[] => items.map((applicant) => ({ ...applicant, tags: [...applicant.tags] }))
+const cloneApplicants = (items: Applicant[]): Applicant[] => items.map((applicant) => ({ ...applicant, finalOutcome: applicant.finalOutcome ?? null, tags: [...applicant.tags] }))
 
 const wait = async (): Promise<void> => {
   const delay = MIN_DELAY_MS + Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1))
@@ -39,6 +39,7 @@ const isApplicant = (value: unknown): value is Applicant => {
     && typeof applicant.accent === 'string'
     && typeof applicant.applied === 'string'
     && typeof applicant.updatedAt === 'number'
+    && (applicant.finalOutcome === undefined || applicant.finalOutcome === null || applicant.finalOutcome === 'passed' || applicant.finalOutcome === 'failed')
     && Array.isArray(applicant.tags)
     && applicant.tags.every((tag): tag is string => typeof tag === 'string')
 }

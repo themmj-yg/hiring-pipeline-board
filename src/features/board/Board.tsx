@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, 
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { List, type RowComponentProps } from 'react-window'
 import { fetchApplicants, patchApplicant } from '../mock-api'
-import { stages, type Applicant, type Stage } from '../applicants'
+import { stages, type Applicant, type FinalOutcome, type Stage } from '../applicants'
 import { moveApplicantToStage } from './movement'
 
 type BoardColumn = {
@@ -23,6 +23,7 @@ type MoveUpdate = {
   operationId: number
   recordUndo: boolean
   preserveLastMoveOnFailure: boolean
+  finalOutcome?: FinalOutcome
 }
 
 const boardColumns: BoardColumn[] = [
@@ -49,7 +50,8 @@ const pendingMovesAtom = atom<Record<string, { operationId: number; previousStag
 const optimisticMoveAtom = atom(null, (get, set, update: MoveUpdate) => {
   const applicant = get(applicantsAtom).find((item) => item.id === update.id)
   if (!applicant) return
-  set(applicantsAtom, moveApplicantToStage(get(applicantsAtom), update.id, update.stage, Date.now()))
+  const moved = moveApplicantToStage(get(applicantsAtom), update.id, update.stage, Date.now())
+  set(applicantsAtom, moved.map((item) => item.id === update.id ? { ...item, finalOutcome: update.finalOutcome ?? null } : item))
   if (update.recordUndo) {
     set(undoMoveAtom, { applicantId: update.id, fromStage: applicant.stage, toStage: update.stage })
     set(undoRetryAtom, false)
@@ -124,9 +126,9 @@ function ApplicantCard({ applicant, style, ariaAttributes }: ApplicantCardProps)
         </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-brand/5 pt-3 text-[11px] text-black/45">
-        <div className="flex flex-col min-w-0">
+          <div className="flex min-w-0 flex-col">
           <span>{applicant.applied}</span>
-          <span>{applicant.stage}</span>
+            {applicant.stage === 'Offer' ? <span className={applicant.finalOutcome === 'passed' ? 'font-semibold text-emerald-700' : applicant.finalOutcome === 'failed' ? 'font-semibold text-rose-700' : 'font-semibold text-black/50'}>{applicant.finalOutcome === 'passed' ? '최종합격' : applicant.finalOutcome === 'failed' ? '불합격' : '결과 미정'}</span> : <span>{applicant.stage}</span>}
         </div>
         <ApplicantMoveButton applicant={applicant} />
       </div>
@@ -165,13 +167,13 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
 
   if (!nextStage) return null
 
-  const handleMove = async (event: MouseEvent<HTMLButtonElement>): Promise<void> => {
+  const handleMove = async (event: MouseEvent<HTMLButtonElement>, outcome: FinalOutcome = null): Promise<void> => {
     event.stopPropagation()
     const operationId = ++nextOperationId
-    optimisticMove({ id: applicant.id, stage: nextStage, operationId, recordUndo: true, preserveLastMoveOnFailure: false })
+    optimisticMove({ id: applicant.id, stage: nextStage, operationId, recordUndo: true, preserveLastMoveOnFailure: false, finalOutcome: outcome })
     setIsSaving(true)
     try {
-      await patchApplicant(applicant.id, { stage: nextStage })
+      await patchApplicant(applicant.id, { stage: nextStage, finalOutcome: outcome })
       settleMove({ id: applicant.id, operationId })
     } catch {
       rollbackMove({ id: applicant.id, operationId })
@@ -181,8 +183,13 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
     }
   }
 
+  if (nextStage === 'Offer') return <span className="flex shrink-0 items-center gap-2">
+    <button type="button" onClick={(event) => void handleMove(event, 'passed')} onKeyDown={(event) => event.stopPropagation()} disabled={isSaving} className="rounded-full bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 disabled:cursor-wait disabled:opacity-50">합격처리</button>
+    <button type="button" onClick={(event) => void handleMove(event, 'failed')} onKeyDown={(event) => event.stopPropagation()} disabled={isSaving} className="rounded-full bg-rose-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-400/50 disabled:cursor-wait disabled:opacity-50">불합격처리</button>
+  </span>
+
   return <span className="flex shrink-0 items-center gap-2">
-    <button type="button" onClick={handleMove} onKeyDown={(event) => event.stopPropagation()} disabled={isSaving} className="rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/50 disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStageLabel} 단계로 이동`}</button>
+    <button type="button" onClick={(event) => void handleMove(event)} onKeyDown={(event) => event.stopPropagation()} disabled={isSaving} className="rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/50 disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStageLabel} 단계로 이동`}</button>
   </span>
 }
 
@@ -274,7 +281,7 @@ export default function Board() {
     setToast(null)
     optimisticMove({ id: move.applicantId, stage: move.fromStage, operationId, recordUndo: false, preserveLastMoveOnFailure: true })
     try {
-      await patchApplicant(move.applicantId, { stage: move.fromStage })
+      await patchApplicant(move.applicantId, { stage: move.fromStage, finalOutcome: null })
       settleMove({ id: move.applicantId, operationId })
       clearUndoMove(null)
       setUndoPending(false)
