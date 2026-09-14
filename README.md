@@ -24,7 +24,7 @@ npm run test
 ```
 src/
   features/
-    board/         # 보드 레이아웃, 컬럼, 카드, 상세 패널, DnD/버튼 이동
+    board/         # 보드 레이아웃, 컬럼, 카드, 상세 패널, 버튼 이동
     mock-api/      # 지원자 mock 데이터 및 지연/실패 시뮬레이션
     applicants/    # 지원자 관련 아톰, 파생 상태, 검색/필터
 ```
@@ -65,3 +65,6 @@ src/
 ## 스킬 적용 사실
 
 본 프로젝트는 `frontend-ponytail` 스킬(과잉설계 금지/YAGNI, 최소 diff, 네이티브 우선, Jotai 파생 아톰 우선, `any` 금지, Vitest 동시 제공, 트레이드오프 요약)을 전 과정에 적용했습니다. 개발 도중 디자인 관련 지침이 스킬에 추가된 시점 이후로는 소급 적용 여부를 `DECISIONS.md`에 기록해두었습니다.
+
+## LIVE
+[https://hiring-pipeline-board-two.vercel.app/]
