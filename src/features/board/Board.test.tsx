@@ -38,6 +38,21 @@ describe('Board', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(200)
   })
 
+  it('debounces name search and applies the job filter through the derived lists', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '이름 검색' }), { target: { value: 'Ava Rodriguez' } })
+    expect(screen.getAllByRole('listitem')).toHaveLength(200)
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2))
+
+    fireEvent.change(screen.getByRole('combobox', { name: '직무 필터' }), { target: { value: 'Product Designer' } })
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '이름 검색' }), { target: { value: '' } })
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(50))
+  })
+
   it('opens applicant details from a focusable card button', async () => {
     render(<Provider><Board /></Provider>)
     await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())

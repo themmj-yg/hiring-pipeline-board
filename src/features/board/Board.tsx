@@ -24,6 +24,9 @@ const loadingAtom = atom(true)
 const errorAtom = atom<string | null>(null)
 const selectedApplicantAtom = atom<Applicant | null>(null)
 const toastAtom = atom<string | null>(null)
+const searchQueryAtom = atom('')
+const debouncedSearchQueryAtom = atom('')
+const jobFilterAtom = atom('all')
 const pendingMovesAtom = atom<Record<string, { operationId: number; previousStage: Stage }>>({})
 const optimisticMoveAtom = atom(null, (get, set, update: { id: string; stage: Stage; operationId: number }) => {
   const applicant = get(applicantsAtom).find((item) => item.id === update.id)
@@ -45,11 +48,23 @@ const settleMoveAtom = atom(null, (get, set, update: { id: string; operationId: 
   set(pendingMovesAtom, remaining)
 })
 
+const filteredApplicantsAtom = atom((get): Applicant[] => {
+  const query = get(debouncedSearchQueryAtom).trim().toLowerCase()
+  const job = get(jobFilterAtom)
+  return get(applicantsAtom).filter((applicant) => {
+    const matchesName = !query || applicant.name.toLowerCase().includes(query)
+    const matchesJob = job === 'all' || applicant.role === job
+    return matchesName && matchesJob
+  })
+})
+
 const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
   const grouped: Record<Stage, Applicant[]> = { Applied: [], Screening: [], Interview: [], Offer: [] }
-  get(applicantsAtom).forEach((applicant) => grouped[applicant.stage].push(applicant))
+  get(filteredApplicantsAtom).forEach((applicant) => grouped[applicant.stage].push(applicant))
   return grouped
 })
+
+const jobOptionsAtom = atom((get) => Array.from(new Set(get(applicantsAtom).map((applicant) => applicant.role))).sort())
 
 function ApplicantCard({ applicant }: { applicant: Applicant }) {
   const setSelectedApplicant = useSetAtom(selectedApplicantAtom)
@@ -147,12 +162,21 @@ function RollbackToast({ message, onClose }: { message: string; onClose: () => v
 
 export default function Board() {
   const setApplicants = useSetAtom(applicantsAtom)
+  const setDebouncedSearchQuery = useSetAtom(debouncedSearchQueryAtom)
+  const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
+  const [jobFilter, setJobFilter] = useAtom(jobFilterAtom)
   const [loading, setLoading] = useAtom(loadingAtom)
   const [error, setError] = useAtom(errorAtom)
   const [selectedApplicant, setSelectedApplicant] = useAtom(selectedApplicantAtom)
   const toast = useAtomValue(toastAtom)
   const setToast = useSetAtom(toastAtom)
   const applicantsByStage = useAtomValue(applicantsByStageAtom)
+  const jobOptions = useAtomValue(jobOptionsAtom)
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedSearchQuery(searchQuery), 200)
+    return () => window.clearTimeout(timeoutId)
+  }, [searchQuery, setDebouncedSearchQuery])
 
   useEffect(() => {
     let active = true
@@ -183,6 +207,19 @@ export default function Board() {
         <div className="mb-8">
           <p className="text-sm font-medium text-black/50">Candidate workspace</p>
           <h2 id="board-title" className="mt-1 text-2xl font-bold tracking-tight text-black">지원자 현황</h2>
+        </div>
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="flex flex-1 flex-col gap-1.5 text-xs font-semibold text-black/60">
+            이름 검색
+            <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="지원자 이름 검색" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-black outline-none transition placeholder:text-black/35 focus:border-brand focus:ring-2 focus:ring-brand/10" />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-xs font-semibold text-black/60">
+            직무 필터
+            <select value={jobFilter} onChange={(event) => setJobFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-black outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10">
+              <option value="all">전체 직무</option>
+              {jobOptions.map((job) => <option key={job} value={job}>{job}</option>)}
+            </select>
+          </label>
         </div>
         {loading && <p className="rounded-lg border border-dashed border-brand/10 bg-white p-6 text-center text-sm text-black/50">지원자 목록을 불러오는 중입니다.</p>}
         {error && <p role="alert" className="rounded-lg border border-dashed border-brand/10 bg-white p-6 text-center text-sm text-black/50">{error}</p>}
