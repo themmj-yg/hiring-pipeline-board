@@ -36,6 +36,7 @@ describe('Board', () => {
     expect(screen.getByRole('region', { name: '최종합격/불합격' })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: '서류검토 지원자 목록' })).toBeInTheDocument()
     expect(screen.getAllByRole('listitem')).toHaveLength(200)
+    expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
   })
 
   it('shows a loading state while the API request is pending', () => {
@@ -125,6 +126,87 @@ describe('Board', () => {
     expect(moveApplicantToStage(applicants, 'applicant-1', 'Screening')[0].stage).toBe('Screening')
   })
 
+  it('shows a one-shot Undo action and persists the reverse move', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    const cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied' }))
+    expect(within(screen.getByRole('list', { name: '서류검토 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument()
+  })
+
+  it('sorts a moved applicant to the top of the destination column', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    const cardItem = screen.getByText('Mia Thompson', { exact: true }).closest('li') as HTMLElement
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
+
+    const interviewList = screen.getByRole('list', { name: '면접 지원자 목록' })
+    await waitFor(() => expect(within(interviewList).getAllByRole('listitem')[0]).toHaveTextContent('Mia Thompson'))
+  })
+
+  it('supports the same one-shot Undo action beside the board title', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    const cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '실행취소' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: '실행취소' }))
+    expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied' }))
+  })
+
+  it('replaces Undo information when a newer move succeeds', async () => {
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    let cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
+    await waitFor(() => expect(within(screen.getByRole('list', { name: '면접 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument())
+
+    cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
+    fireEvent.click(within(cardItem).getByRole('button', { name: '처우협의 단계로 이동' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Screening' }))
+    expect(within(screen.getByRole('list', { name: '면접 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument()
+  })
+
+  it('keeps lastMove and retries a failed Undo from the failure toast', async () => {
+    vi.mocked(patchApplicant).mockImplementationOnce(async (id, patch) => {
+      const applicant = applicants.find((item) => item.id === id)
+      if (!applicant || !patch.stage) throw new Error('Applicant not found')
+      return { ...applicant, stage: patch.stage }
+    }).mockRejectedValueOnce(new Error('undo failed')).mockImplementationOnce(async (id, patch) => {
+      const applicant = applicants.find((item) => item.id === id)
+      if (!applicant || !patch.stage) throw new Error('Applicant not found')
+      return { ...applicant, stage: patch.stage }
+    })
+    render(<Provider><Board /></Provider>)
+    await waitFor(() => expect(screen.getByRole('region', { name: '서류검토' })).toBeInTheDocument())
+
+    const cardItem = screen.getByText('Ava Rodriguez', { exact: true }).closest('li') as HTMLElement
+    fireEvent.click(within(cardItem).getByRole('button', { name: '면접 단계로 이동' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: '실행취소' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+
+    await waitFor(() => expect(patchApplicant).toHaveBeenLastCalledWith('applicant-1', { stage: 'Applied' }))
+    expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
+  })
+
   it('updates the column before a successful API response', async () => {
     let resolvePatch: ((value: typeof applicants[0]) => void) | undefined
     vi.mocked(patchApplicant).mockReturnValueOnce(new Promise((resolve) => { resolvePatch = resolve }))
@@ -190,7 +272,7 @@ describe('Board', () => {
 
     rejectFirst?.(new Error('old request failed'))
     await waitFor(() => expect(within(screen.getByRole('list', { name: '처우협의 지원자 목록' })).getByText('Ava Rodriguez')).toBeInTheDocument())
-    expect(screen.getByRole('status')).toHaveTextContent('단계 이동에 실패해 이전 상태로 되돌렸습니다.')
+    expect(screen.getAllByRole('status').find((status) => status.textContent?.includes('단계 이동에 실패해 이전 상태로 되돌렸습니다.'))).toBeInTheDocument()
     resolveSecond?.(applicants[0])
   })
 })

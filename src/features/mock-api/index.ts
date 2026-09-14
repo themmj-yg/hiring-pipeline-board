@@ -38,6 +38,7 @@ const isApplicant = (value: unknown): value is Applicant => {
     && typeof applicant.initials === 'string'
     && typeof applicant.accent === 'string'
     && typeof applicant.applied === 'string'
+    && typeof applicant.updatedAt === 'number'
     && Array.isArray(applicant.tags)
     && applicant.tags.every((tag): tag is string => typeof tag === 'string')
 }
@@ -61,7 +62,7 @@ export const patchApplicant = async (id: string, patch: ApplicantPatch): Promise
   const index = items.findIndex((applicant) => applicant.id === id)
   if (index < 0) throw new Error(`Applicant not found: ${id}`)
 
-  const updated = { ...items[index], ...patch }
+  const updated = { ...items[index], ...patch, ...(patch.stage ? { updatedAt: Date.now() } : {}) }
   items[index] = updated
   writeApplicants(items)
   return { ...updated, tags: [...updated.tags] }

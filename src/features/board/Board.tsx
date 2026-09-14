@@ -10,6 +10,20 @@ type BoardColumn = {
   description: string
 }
 
+type UndoMove = {
+  applicantId: string
+  fromStage: Stage
+  toStage: Stage
+}
+
+type MoveUpdate = {
+  id: string
+  stage: Stage
+  operationId: number
+  recordUndo: boolean
+  preserveLastMoveOnFailure: boolean
+}
+
 const boardColumns: BoardColumn[] = [
   { stage: 'Applied', label: '서류검토', description: '지원서를 검토할 후보자' },
   { stage: 'Screening', label: '면접', description: '면접을 진행할 후보자' },
@@ -24,20 +38,29 @@ const loadingAtom = atom(true)
 const errorAtom = atom<string | null>(null)
 const selectedApplicantIdAtom = atom<string | null>(null)
 const toastAtom = atom<string | null>(null)
+const undoMoveAtom = atom<UndoMove | null>(null)
+const undoPendingAtom = atom(false)
 const searchQueryAtom = atom('')
 const debouncedSearchQueryAtom = atom('')
 const jobFilterAtom = atom('all')
-const pendingMovesAtom = atom<Record<string, { operationId: number; previousStage: Stage }>>({})
-const optimisticMoveAtom = atom(null, (get, set, update: { id: string; stage: Stage; operationId: number }) => {
+const undoRetryAtom = atom(false)
+const pendingMovesAtom = atom<Record<string, { operationId: number; previousStage: Stage; preserveLastMoveOnFailure: boolean }>>({})
+const optimisticMoveAtom = atom(null, (get, set, update: MoveUpdate) => {
   const applicant = get(applicantsAtom).find((item) => item.id === update.id)
   if (!applicant) return
-  set(applicantsAtom, moveApplicantToStage(get(applicantsAtom), update.id, update.stage))
-  set(pendingMovesAtom, { ...get(pendingMovesAtom), [update.id]: { operationId: update.operationId, previousStage: applicant.stage } })
+  set(applicantsAtom, moveApplicantToStage(get(applicantsAtom), update.id, update.stage, Date.now()))
+  if (update.recordUndo) {
+    set(undoMoveAtom, { applicantId: update.id, fromStage: applicant.stage, toStage: update.stage })
+    set(undoRetryAtom, false)
+    set(undoPendingAtom, false)
+  }
+  set(pendingMovesAtom, { ...get(pendingMovesAtom), [update.id]: { operationId: update.operationId, previousStage: applicant.stage, preserveLastMoveOnFailure: update.preserveLastMoveOnFailure } })
 })
 const rollbackMoveAtom = atom(null, (get, set, update: { id: string; operationId: number }) => {
   const pendingMove = get(pendingMovesAtom)[update.id]
   if (!pendingMove || pendingMove.operationId !== update.operationId) return
   set(applicantsAtom, moveApplicantToStage(get(applicantsAtom), update.id, pendingMove.previousStage))
+  if (!pendingMove.preserveLastMoveOnFailure && get(undoMoveAtom)?.applicantId === update.id) set(undoMoveAtom, null)
   const { [update.id]: _removed, ...remaining } = get(pendingMovesAtom)
   set(pendingMovesAtom, remaining)
 })
@@ -65,7 +88,7 @@ const selectedApplicantAtom = atom((get) => {
 
 const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
   const grouped: Record<Stage, Applicant[]> = { Applied: [], Screening: [], Interview: [], Offer: [] }
-  get(filteredApplicantsAtom).forEach((applicant) => grouped[applicant.stage].push(applicant))
+  get(filteredApplicantsAtom).toSorted((left, right) => right.updatedAt - left.updatedAt).forEach((applicant) => grouped[applicant.stage].push(applicant))
   return grouped
 })
 
@@ -119,7 +142,7 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
   const handleMove = async (event: MouseEvent<HTMLButtonElement>): Promise<void> => {
     event.stopPropagation()
     const operationId = ++nextOperationId
-    optimisticMove({ id: applicant.id, stage: nextStage, operationId })
+    optimisticMove({ id: applicant.id, stage: nextStage, operationId, recordUndo: true, preserveLastMoveOnFailure: false })
     setIsSaving(true)
     try {
       await patchApplicant(applicant.id, { stage: nextStage })
@@ -169,7 +192,7 @@ function ApplicantDetails({ applicant, onClose }: { applicant: Applicant; onClos
   )
 }
 
-function RollbackToast({ message, onClose }: { message: string; onClose: () => void }) {
+function RollbackToast({ message, onClose, onRetry }: { message: string; onClose: () => void; onRetry?: () => void }) {
   useEffect(() => {
     const timeoutId = window.setTimeout(onClose, 5000)
     return () => window.clearTimeout(timeoutId)
@@ -177,7 +200,18 @@ function RollbackToast({ message, onClose }: { message: string; onClose: () => v
 
   return <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg">
     <span>{message}</span>
+    {onRetry && <button type="button" onClick={onRetry} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-900 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-white/70">다시 시도</button>}
     <button type="button" onClick={onClose} className="rounded-full p-0.5 text-white/70 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50" aria-label="알림 닫기">x</button>
+  </div>
+}
+
+function UndoToast({ move, onUndo, disabled }: { move: UndoMove; onUndo: () => void; disabled: boolean }) {
+  const fromLabel = boardColumns.find((column) => column.stage === move.fromStage)?.label
+  const toLabel = boardColumns.find((column) => column.stage === move.toStage)?.label
+
+  return <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg">
+    <span>{fromLabel}에서 {toLabel}로 이동했습니다.</span>
+    <button type="button" onClick={onUndo} disabled={disabled} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-900 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-white/70 disabled:cursor-not-allowed disabled:opacity-50">Undo</button>
   </div>
 }
 
@@ -190,11 +224,41 @@ export default function Board() {
   const [error, setError] = useAtom(errorAtom)
   const selectedApplicant = useAtomValue(selectedApplicantAtom)
   const setSelectedApplicantId = useSetAtom(selectedApplicantIdAtom)
+  const undoMove = useAtomValue(undoMoveAtom)
+  const clearUndoMove = useSetAtom(undoMoveAtom)
+  const undoPending = useAtomValue(undoPendingAtom)
+  const setUndoPending = useSetAtom(undoPendingAtom)
+  const optimisticMove = useSetAtom(optimisticMoveAtom)
+  const rollbackMove = useSetAtom(rollbackMoveAtom)
+  const settleMove = useSetAtom(settleMoveAtom)
+  const undoRetry = useAtomValue(undoRetryAtom)
+  const setUndoRetry = useSetAtom(undoRetryAtom)
   const toast = useAtomValue(toastAtom)
   const setToast = useSetAtom(toastAtom)
   const filteredApplicants = useAtomValue(filteredApplicantsAtom)
   const applicantsByStage = useAtomValue(applicantsByStageAtom)
   const jobOptions = useAtomValue(jobOptionsAtom)
+
+  const handleUndo = async (): Promise<void> => {
+    if (!undoMove) return
+    const move = undoMove
+    const operationId = ++nextOperationId
+    setUndoPending(true)
+    setUndoRetry(false)
+    setToast(null)
+    optimisticMove({ id: move.applicantId, stage: move.fromStage, operationId, recordUndo: false, preserveLastMoveOnFailure: true })
+    try {
+      await patchApplicant(move.applicantId, { stage: move.fromStage })
+      settleMove({ id: move.applicantId, operationId })
+      clearUndoMove(null)
+      setUndoPending(false)
+    } catch {
+      rollbackMove({ id: move.applicantId, operationId })
+      setUndoPending(false)
+      setUndoRetry(true)
+      setToast('되돌리기에 실패했습니다.')
+    }
+  }
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => setDebouncedSearchQuery(searchQuery), 200)
@@ -229,7 +293,10 @@ export default function Board() {
       <section className="mx-auto max-w-7xl px-6 py-8 sm:px-10 sm:py-10" aria-labelledby="board-title">
         <div className="mb-8">
           <p className="text-sm font-medium text-black/50">Candidate workspace</p>
-          <h2 id="board-title" className="mt-1 text-2xl font-bold tracking-tight text-black">지원자 현황</h2>
+          <div className="mt-1 flex items-center gap-3">
+            <h2 id="board-title" className="text-2xl font-bold tracking-tight text-black">지원자 현황</h2>
+            <button type="button" onClick={() => void handleUndo()} disabled={!undoMove || undoPending} className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/50 disabled:cursor-not-allowed disabled:opacity-10">실행취소</button>
+          </div>
         </div>
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex flex-1 flex-col gap-1.5 text-xs font-semibold text-black/60">
@@ -262,7 +329,8 @@ export default function Board() {
           })}
         </div>}
       </section>
-      {toast && <RollbackToast message={toast} onClose={() => setToast(null)} />}
+      {undoMove && <UndoToast move={undoMove} disabled={undoPending} onUndo={() => void handleUndo()} />}
+      {toast && <RollbackToast message={toast} onRetry={undoRetry ? () => void handleUndo() : undefined} onClose={() => setToast(null)} />}
       {selectedApplicant && <ApplicantDetails applicant={selectedApplicant} onClose={() => setSelectedApplicantId(null)} />}
     </main>
   )
