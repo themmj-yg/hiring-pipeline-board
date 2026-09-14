@@ -2,7 +2,7 @@
 ### 프롬프트
 Vite + React + TypeScript 프로젝트를 새로 만들고, 상태관리는 Jotai, 스타일은 Tailwind로 세팅한다. 라우팅은 필요 없다.(단일 보드 페이지). 폴더는 기능 단위(features/board, features/mock-api, features/applicants)로 분리하되, 규칙대로 불필요하게 파일을 쪼개지 않는다.
 ### AI 출력 요지
-
+- boiler plate 생성
 ### 리뷰 / 검증
  npm run dev로 실제 구동되는지
  아톰을 담을 store.ts 같은 전역 파일을 미리 만들지 않았는지 (스킬 위반 여부)
@@ -10,6 +10,21 @@ Vite + React + TypeScript 프로젝트를 새로 만들고, 상태관리는 Jota
 - 무엇이 문제였나 (틀림·비효율·요구 누락)
 - 어떻게 알아봤나 (직접 재현·테스트·정독)
 - 그대로 채택
+
+## 1. style (chore: sync-design-guide)
+### 프롬프트
+`frontend-ponytail` 스킬의 컬러/배경 규칙이 업데이트됐다. 지금까지 만든 board-layout, card-list, detail-panel 컴포넌트를 다시 훑어서, 업데이트된 스킬의 컬러 토큰(배경색, 텍스트 컬러 등)에 맞게 Tailwind 클래스만 교체한다. 레이아웃 구조나 로직은 건드리지 말고 스타일 클래스만 최소로 바꾼다. 모든 텍스트는 #000을 유지, 모노톤을 유지한다. 쓸데없는 컬러는 넣지않는다. 
+### AI 출력 요지
+임의 hex 색상 제거
+다색 상태 배지와 상태 점을 흑백 계열로 통일
+모든 텍스트를 text-black 또는 검정 투명도 계열로 통일
+배경을 bg-white, bg-slate-50/60, bg-slate-100 기반으로 정리
+보더와 포커스 링에 brand 토큰 적용
+카드 그림자를 검정 투명도 기반으로 변경
+기존 컬러 아바타는 !bg-slate-100로 시각적 흑백 유지
+레이아웃, 컴포넌트 구조, 상태 로직은 변경하지 않음
+### 리뷰 / 검증
+- 로컬 서버 확인
 
 
 <!-- ## [stage-move] 카드 단계 이동
