@@ -17,12 +17,32 @@ const boardColumns: BoardColumn[] = [
   { stage: 'Offer', label: '최종합격/불합격', description: '최종 결과를 정리할 후보자' },
 ]
 
+let nextOperationId = 0
+
 const applicantsAtom = atom<Applicant[]>([])
 const loadingAtom = atom(true)
 const errorAtom = atom<string | null>(null)
 const selectedApplicantAtom = atom<Applicant | null>(null)
-const moveApplicantAtom = atom(null, (get, set, update: { id: string; stage: Stage }) => {
+const toastAtom = atom<string | null>(null)
+const pendingMovesAtom = atom<Record<string, { operationId: number; previousStage: Stage }>>({})
+const optimisticMoveAtom = atom(null, (get, set, update: { id: string; stage: Stage; operationId: number }) => {
+  const applicant = get(applicantsAtom).find((item) => item.id === update.id)
+  if (!applicant) return
   set(applicantsAtom, moveApplicantToStage(get(applicantsAtom), update.id, update.stage))
+  set(pendingMovesAtom, { ...get(pendingMovesAtom), [update.id]: { operationId: update.operationId, previousStage: applicant.stage } })
+})
+const rollbackMoveAtom = atom(null, (get, set, update: { id: string; operationId: number }) => {
+  const pendingMove = get(pendingMovesAtom)[update.id]
+  if (!pendingMove || pendingMove.operationId !== update.operationId) return
+  set(applicantsAtom, moveApplicantToStage(get(applicantsAtom), update.id, pendingMove.previousStage))
+  const { [update.id]: _removed, ...remaining } = get(pendingMovesAtom)
+  set(pendingMovesAtom, remaining)
+})
+const settleMoveAtom = atom(null, (get, set, update: { id: string; operationId: number }) => {
+  const pendingMove = get(pendingMovesAtom)[update.id]
+  if (!pendingMove || pendingMove.operationId !== update.operationId) return
+  const { [update.id]: _removed, ...remaining } = get(pendingMovesAtom)
+  set(pendingMovesAtom, remaining)
 })
 
 const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
@@ -61,9 +81,11 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
 }
 
 function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
-  const moveApplicant = useSetAtom(moveApplicantAtom)
+  const optimisticMove = useSetAtom(optimisticMoveAtom)
+  const rollbackMove = useSetAtom(rollbackMoveAtom)
+  const settleMove = useSetAtom(settleMoveAtom)
+  const setToast = useSetAtom(toastAtom)
   const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const currentIndex = stages.indexOf(applicant.stage)
   const nextStage = stages[currentIndex + 1]
 
@@ -71,13 +93,15 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
 
   const handleMove = async (event: MouseEvent<HTMLButtonElement>): Promise<void> => {
     event.stopPropagation()
+    const operationId = ++nextOperationId
+    optimisticMove({ id: applicant.id, stage: nextStage, operationId })
     setIsSaving(true)
-    setError(null)
     try {
-      const updated = await patchApplicant(applicant.id, { stage: nextStage })
-      moveApplicant({ id: updated.id, stage: updated.stage })
+      await patchApplicant(applicant.id, { stage: nextStage })
+      settleMove({ id: applicant.id, operationId })
     } catch {
-      setError('저장하지 못했습니다.')
+      rollbackMove({ id: applicant.id, operationId })
+      setToast('단계 이동에 실패해 이전 상태로 되돌렸습니다.')
     } finally {
       setIsSaving(false)
     }
@@ -85,7 +109,6 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
 
   return <span className="flex shrink-0 items-center gap-2">
     <button type="button" onClick={handleMove} disabled={isSaving} className="rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/50 disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStage}로 이동`}</button>
-    {error && <span role="alert" className="text-black/50">{error}</span>}
   </span>
 }
 
@@ -110,11 +133,25 @@ function ApplicantDetails({ applicant, onClose }: { applicant: Applicant; onClos
   )
 }
 
+function RollbackToast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(onClose, 5000)
+    return () => window.clearTimeout(timeoutId)
+  }, [message, onClose])
+
+  return <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg">
+    <span>{message}</span>
+    <button type="button" onClick={onClose} className="rounded-full p-0.5 text-white/70 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50" aria-label="알림 닫기">x</button>
+  </div>
+}
+
 export default function Board() {
   const setApplicants = useSetAtom(applicantsAtom)
   const [loading, setLoading] = useAtom(loadingAtom)
   const [error, setError] = useAtom(errorAtom)
   const [selectedApplicant, setSelectedApplicant] = useAtom(selectedApplicantAtom)
+  const toast = useAtomValue(toastAtom)
+  const setToast = useSetAtom(toastAtom)
   const applicantsByStage = useAtomValue(applicantsByStageAtom)
 
   useEffect(() => {
@@ -164,6 +201,7 @@ export default function Board() {
           })}
         </div>}
       </section>
+      {toast && <RollbackToast message={toast} onClose={() => setToast(null)} />}
       {selectedApplicant && <ApplicantDetails applicant={selectedApplicant} onClose={() => setSelectedApplicant(null)} />}
     </main>
   )
