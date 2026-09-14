@@ -1,32 +1,67 @@
-# React + TypeScript + Vite
+# 채용 파이프라인 보드 (Hiring Pipeline Board)
+지원자를 단계별 컬럼(서류검토 → 면접 → 처우협의 → 최종합격/불합격)으로 관리하는 칸반형 보드입니다.
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+## 스택
+- **Vite** + **React** + **TypeScript**
+- **Jotai** (전역/파생 상태관리)
+- **Tailwind CSS** (스타일링)
+- 라우팅 없음 (단일 보드 페이지)
 
-Currently, two official plugins are available:
+## 설치 및 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+```bash
+# 테스트 실행 (Vitest)
+npm run test
+```
+
+## 프로젝트 구조
+
+```
+src/
+  features/
+    board/         # 보드 레이아웃, 컬럼, 카드, 상세 패널, DnD/버튼 이동
+    mock-api/      # 지원자 mock 데이터 및 지연/실패 시뮬레이션
+    applicants/    # 지원자 관련 아톰, 파생 상태, 검색/필터
+```
+
+기능 단위(feature) 폴더 구조를 따르며, 스킬(ponytail 커스터마이징) 규칙에 따라 불필요한 파일 쪼개기 없이 최소 구성으로 유지했습니다.
+
+## Mock API
+
+- 지원자 200건(이름 / 직무 / 지원일 / 현재 단계)을 생성해 `localStorage`에 persist합니다.
+- 모든 요청에 200~800ms 랜덤 지연을 부여합니다.
+- 쓰기 요청(PATCH 등)은 약 15% 확률로 의도적으로 실패(reject)하여, 낙관적 업데이트 + 롤백 시나리오를 검증할 수 있게 했습니다.
+- 응답 타입은 `any` 없이 명시적으로 정의했습니다.
+
+## 주요 기능
+
+### 필수 요구사항 (Must)
+1. 단계별 컬럼 + 카드(이름 · 직무 · 지원일 · 현재 단계) 표시
+2. 카드 단계 이동 — **버튼 클릭 방식**으로 구현 (드래그앤드롭 미채택), 새로고침 후에도 유지(persist)
+3. 낙관적 업데이트 + 실패 시 롤백 + 사용자 피드백(토스트)
+4. 이름 검색 + 직무 필터 (디바운스 적용, 200건 이상에서도 체감 지연 없음)
+5. 카드 클릭 시 상세 보기 패널
+6. 로딩 / 에러 / 빈 상태 3가지 UI 처리
+
+### 도전 요구사항 (Should) — 모두 구현
+- **a11y-keyboard**: 3~7단계에서부터 시맨틱 마크업(button, role, aria-label, native dialog)을 적용해 마우스 없이 전체 플로우 완주 가능
+- **Undo**: 방금 수행한 단계 이동 1회를 되돌리는 기능 (redo 없음, 별도 히스토리 스택 없이 최소 구현)
+- **Virtualization**: 지원자 1,000건 기준 카드 리스트에 가상 스크롤 적용
+
+### 최종합격/불합격 처리
+요구사항에 명시되지 않은 부분이라 다음과 같이 별도 정의했습니다.
+- 이동 버튼은 "최종합격/불합격 상태로 이동" 단일 버튼이 아니라 **[합격처리] / [불합격처리]** 두 개로 분리
+- 클릭 시 각각 최종합격 / 불합격 상태로 이동하며, 상태값도 두 가지로 분리 저장
+- [합격처리]/[불합격처리] 버튼은 **배경 컬러**로, 이동 후 카드의 **최종합격/불합격 상태 표시는 폰트 컬러**로 구분
+- 버튼 배경 컬러와 상태 폰트 컬러는 각 상태별로 동일한 색을 사용해 시각적 일관성을 유지
+
+자세한 설계 배경과 트레이드오프는 `DECISIONS.md`를 참고하세요.
+
+## 스킬 적용 사실
+
+본 프로젝트는 `frontend-ponytail` 스킬(과잉설계 금지/YAGNI, 최소 diff, 네이티브 우선, Jotai 파생 아톰 우선, `any` 금지, Vitest 동시 제공, 트레이드오프 요약)을 전 과정에 적용했습니다. 개발 도중 디자인 관련 지침이 스킬에 추가된 시점 이후로는 소급 적용 여부를 `DECISIONS.md`에 기록해두었습니다.
