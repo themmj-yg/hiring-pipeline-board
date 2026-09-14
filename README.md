@@ -24,7 +24,7 @@ npm run test
 ```
 src/
   features/
-    board/         # 보드 레이아웃, 컬럼, 카드, 상세 패널, DnD/버튼 이동
+    board/         # 보드 레이아웃, 컬럼, 카드, 상세 패널, 버튼 이동
     mock-api/      # 지원자 mock 데이터 및 지연/실패 시뮬레이션
     applicants/    # 지원자 관련 아톰, 파생 상태, 검색/필터
 ```
