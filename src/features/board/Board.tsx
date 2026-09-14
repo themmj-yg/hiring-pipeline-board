@@ -35,11 +35,11 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
   const setSelectedApplicant = useSetAtom(selectedApplicantAtom)
 
   return (
-    <li>
+    <li className="group rounded-lg border border-brand/5 bg-white p-4 shadow-[0_2px_8px_rgba(24,36,50,0.02)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_4px_12px_rgba(24,36,50,0.06)]">
       <button
         type="button"
         onClick={() => setSelectedApplicant(applicant)}
-        className="group w-full rounded-lg border border-brand/5 bg-white p-4 text-left shadow-[0_2px_8px_rgba(24,36,50,0.02)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_4px_12px_rgba(24,36,50,0.06)] focus:outline-none focus:ring-2 focus:ring-brand/20"
+        className="w-full text-left focus:outline-none focus:ring-2 focus:ring-brand/20"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -48,12 +48,14 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
           </div>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-black/55">{applicant.initials}</span>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-black/45">
+      </button>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-brand/5 pt-3 text-[11px] text-black/45">
+        <div className="flex flex-col min-w-0">
           <span>{applicant.applied}</span>
           <span>{applicant.stage}</span>
         </div>
-      </button>
-      <ApplicantMoveButton applicant={applicant} />
+        <ApplicantMoveButton applicant={applicant} />
+      </div>
     </li>
   )
 }
@@ -81,9 +83,9 @@ function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
     }
   }
 
-  return <span className="mt-4 block border-t border-brand/5 pt-3">
-    <button type="button" onClick={handleMove} disabled={isSaving} className="font-semibold text-black/60 hover:text-black disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStage}로 이동`}</button>
-    {error && <span role="alert" className="ml-2 text-black/50">{error}</span>}
+  return <span className="flex shrink-0 items-center gap-2">
+    <button type="button" onClick={handleMove} disabled={isSaving} className="rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/50 disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStage}로 이동`}</button>
+    {error && <span role="alert" className="text-black/50">{error}</span>}
   </span>
 }
 
