@@ -1,4 +1,7 @@
-import type { Stage } from '../applicants'
+import { useEffect } from 'react'
+import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { fetchApplicants } from '../mock-api'
+import type { Applicant, Stage } from '../applicants'
 
 type BoardColumn = {
   stage: Stage
@@ -13,7 +16,87 @@ const boardColumns: BoardColumn[] = [
   { stage: 'Offer', label: '최종합격/불합격', description: '최종 결과를 정리할 후보자' },
 ]
 
+const applicantsAtom = atom<Applicant[]>([])
+const loadingAtom = atom(true)
+const errorAtom = atom<string | null>(null)
+const selectedApplicantAtom = atom<Applicant | null>(null)
+const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
+  const grouped: Record<Stage, Applicant[]> = { Applied: [], Screening: [], Interview: [], Offer: [] }
+  get(applicantsAtom).forEach((applicant) => grouped[applicant.stage].push(applicant))
+  return grouped
+})
+
+function ApplicantCard({ applicant }: { applicant: Applicant }) {
+  const setSelectedApplicant = useSetAtom(selectedApplicantAtom)
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setSelectedApplicant(applicant)}
+        className="group w-full rounded-lg border border-brand/5 bg-white p-4 text-left shadow-[0_2px_8px_rgba(24,36,50,0.02)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_4px_12px_rgba(24,36,50,0.06)] focus:outline-none focus:ring-2 focus:ring-brand/20"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="font-semibold tracking-tight text-black">{applicant.name}</h4>
+            <p className="mt-1 text-xs font-medium text-black/55">{applicant.role}</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-black/55">{applicant.initials}</span>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-black/45">
+          <span>{applicant.applied}</span>
+          <span>{applicant.stage}</span>
+        </div>
+      </button>
+    </li>
+  )
+}
+
+function ApplicantDetails({ applicant, onClose }: { applicant: Applicant; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-10 flex items-center justify-center bg-brand/20 p-6" role="presentation" onClick={onClose}>
+      <section role="dialog" aria-modal="true" aria-labelledby="applicant-details-title" className="w-full max-w-md rounded-xl border border-brand/5 bg-white p-6 shadow-[0_12px_32px_rgba(24,36,50,0.12)]" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Applicant details</p>
+            <h2 id="applicant-details-title" className="mt-2 text-xl font-bold tracking-tight text-black">{applicant.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-sm text-black/50 hover:bg-slate-100 hover:text-black focus:outline-none focus:ring-2 focus:ring-brand/20" aria-label="상세보기 닫기">닫기</button>
+        </div>
+        <dl className="mt-6 space-y-3 text-sm">
+          <div className="flex justify-between gap-4 border-b border-brand/5 pb-3"><dt className="text-black/50">직무</dt><dd className="font-medium text-black">{applicant.role}</dd></div>
+          <div className="flex justify-between gap-4 border-b border-brand/5 pb-3"><dt className="text-black/50">지원일</dt><dd className="font-medium text-black">{applicant.applied}</dd></div>
+          <div className="flex justify-between gap-4"><dt className="text-black/50">현재 단계</dt><dd className="font-medium text-black">{applicant.stage}</dd></div>
+        </dl>
+      </section>
+    </div>
+  )
+}
+
 export default function Board() {
+  const [, setApplicants] = useAtom(applicantsAtom)
+  const [loading, setLoading] = useAtom(loadingAtom)
+  const [error, setError] = useAtom(errorAtom)
+  const [selectedApplicant, setSelectedApplicant] = useAtom(selectedApplicantAtom)
+  const applicantsByStage = useAtomValue(applicantsByStageAtom)
+
+  useEffect(() => {
+    let active = true
+    void fetchApplicants()
+      .then((items) => {
+        if (active) setApplicants(items)
+      })
+      .catch(() => {
+        if (active) setError('지원자 목록을 불러오지 못했습니다.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [setApplicants, setError, setLoading])
+
   return (
     <main className="min-h-screen bg-slate-50/60 text-black">
       <header className="border-b border-brand/5 bg-white/90 px-6 py-6 backdrop-blur sm:px-10">
@@ -27,28 +110,24 @@ export default function Board() {
           <p className="text-sm font-medium text-black/50">Candidate workspace</p>
           <h2 id="board-title" className="mt-1 text-2xl font-bold tracking-tight text-black">지원자 현황</h2>
         </div>
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {boardColumns.map(({ stage, label, description }) => (
-            <section
-              key={stage}
-              role="region"
-              aria-label={label}
-              className="min-h-96 rounded-xl border border-brand/5 bg-white p-6 shadow-[0_4px_12px_rgba(24,36,50,0.02)]"
-            >
+        {loading && <p className="rounded-lg border border-dashed border-brand/10 bg-white p-6 text-center text-sm text-black/50">지원자 목록을 불러오는 중입니다.</p>}
+        {error && <p role="alert" className="rounded-lg border border-dashed border-brand/10 bg-white p-6 text-center text-sm text-black/50">{error}</p>}
+        {!loading && !error && <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {boardColumns.map(({ stage, label, description }) => {
+            const stageApplicants = applicantsByStage[stage]
+            return <section key={stage} role="region" aria-label={label} className="min-h-96 rounded-xl border border-brand/5 bg-white p-6 shadow-[0_4px_12px_rgba(24,36,50,0.02)]">
               <div className="flex items-start justify-between gap-4 border-b border-brand/5 pb-5">
-                <div>
-                  <h3 className="text-base font-semibold tracking-tight text-black">{label}</h3>
-                  <p className="mt-1 text-xs font-medium text-black/50">{description}</p>
-                </div>
-                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-black/50" aria-label="지원자 수">0</span>
+                <div><h3 className="text-base font-semibold tracking-tight text-black">{label}</h3><p className="mt-1 text-xs font-medium text-black/50">{description}</p></div>
+                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-black/50" aria-label="지원자 수">{stageApplicants.length}</span>
               </div>
-              <div className="flex min-h-64 items-center justify-center text-center text-sm text-black/40">
-                <p>아직 지원자가 없습니다.</p>
-              </div>
+              <ul className="mt-5 space-y-3" aria-label={`${label} 지원자 목록`}>
+                {stageApplicants.map((applicant) => <ApplicantCard key={applicant.id} applicant={applicant} />)}
+              </ul>
             </section>
-          ))}
-        </div>
+          })}
+        </div>}
       </section>
+      {selectedApplicant && <ApplicantDetails applicant={selectedApplicant} onClose={() => setSelectedApplicant(null)} />}
     </main>
   )
 }
