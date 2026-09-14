@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { fetchApplicants } from '../mock-api'
-import type { Applicant, Stage } from '../applicants'
+import { fetchApplicants, patchApplicant } from '../mock-api'
+import { stages, type Applicant, type Stage } from '../applicants'
+import { moveApplicantToStage } from './movement'
 
 type BoardColumn = {
   stage: Stage
@@ -20,6 +21,10 @@ const applicantsAtom = atom<Applicant[]>([])
 const loadingAtom = atom(true)
 const errorAtom = atom<string | null>(null)
 const selectedApplicantAtom = atom<Applicant | null>(null)
+const moveApplicantAtom = atom(null, (get, set, update: { id: string; stage: Stage }) => {
+  set(applicantsAtom, moveApplicantToStage(get(applicantsAtom), update.id, update.stage))
+})
+
 const applicantsByStageAtom = atom((get): Record<Stage, Applicant[]> => {
   const grouped: Record<Stage, Applicant[]> = { Applied: [], Screening: [], Interview: [], Offer: [] }
   get(applicantsAtom).forEach((applicant) => grouped[applicant.stage].push(applicant))
@@ -48,8 +53,38 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
           <span>{applicant.stage}</span>
         </div>
       </button>
+      <ApplicantMoveButton applicant={applicant} />
     </li>
   )
+}
+
+function ApplicantMoveButton({ applicant }: { applicant: Applicant }) {
+  const moveApplicant = useSetAtom(moveApplicantAtom)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const currentIndex = stages.indexOf(applicant.stage)
+  const nextStage = stages[currentIndex + 1]
+
+  if (!nextStage) return null
+
+  const handleMove = async (event: MouseEvent<HTMLButtonElement>): Promise<void> => {
+    event.stopPropagation()
+    setIsSaving(true)
+    setError(null)
+    try {
+      const updated = await patchApplicant(applicant.id, { stage: nextStage })
+      moveApplicant({ id: updated.id, stage: updated.stage })
+    } catch {
+      setError('저장하지 못했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return <span className="mt-4 block border-t border-brand/5 pt-3">
+    <button type="button" onClick={handleMove} disabled={isSaving} className="font-semibold text-black/60 hover:text-black disabled:cursor-wait disabled:opacity-50">{isSaving ? '저장 중...' : `${nextStage}로 이동`}</button>
+    {error && <span role="alert" className="ml-2 text-black/50">{error}</span>}
+  </span>
 }
 
 function ApplicantDetails({ applicant, onClose }: { applicant: Applicant; onClose: () => void }) {
@@ -74,7 +109,7 @@ function ApplicantDetails({ applicant, onClose }: { applicant: Applicant; onClos
 }
 
 export default function Board() {
-  const [, setApplicants] = useAtom(applicantsAtom)
+  const setApplicants = useSetAtom(applicantsAtom)
   const [loading, setLoading] = useAtom(loadingAtom)
   const [error, setError] = useAtom(errorAtom)
   const [selectedApplicant, setSelectedApplicant] = useAtom(selectedApplicantAtom)
