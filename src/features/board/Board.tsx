@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { atom, useAtom, useSetAtom } from 'jotai'
 import { applicants, stages, type Applicant, type Stage } from '../applicants'
+import { fetchApplicants, patchApplicant } from '../mock-api'
 
 const applicantsAtom = atom<Applicant[]>(applicants)
 const queryAtom = atom('')
@@ -24,6 +26,11 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
   const moveApplicant = useSetAtom(moveApplicantAtom)
   const nextStage = stages[(stages.indexOf(applicant.stage) + 1) % stages.length]
 
+  const handleMove = async (): Promise<void> => {
+    const updated = await patchApplicant(applicant.id, { stage: nextStage })
+    moveApplicant({ id: updated.id, stage: updated.stage })
+  }
+
   return (
     <article className="group rounded-xl border border-brand/5 bg-white p-4 shadow-[0_3px_12px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 hover:border-brand/15 hover:shadow-[0_8px_22px_rgba(0,0,0,0.08)]">
       <div className="flex items-start justify-between gap-3">
@@ -42,7 +49,7 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-brand/5 pt-3">
         <span className="text-[11px] text-black/40">Applied {applicant.applied}</span>
-        <button type="button" onClick={() => moveApplicant({ id: applicant.id, stage: nextStage })} className="text-[11px] font-semibold text-black opacity-0 transition group-hover:opacity-100 hover:text-black/60">Move to {nextStage} &rarr;</button>
+        <button type="button" onClick={() => void handleMove()} className="text-[11px] font-semibold text-black opacity-0 transition group-hover:opacity-100 hover:text-black/60">Move to {nextStage} &rarr;</button>
       </div>
     </article>
   )
@@ -53,6 +60,10 @@ export default function Board() {
   const [visibleApplicants] = useAtom(filteredApplicantsAtom)
   const setApplicants = useSetAtom(applicantsAtom)
   const total = visibleApplicants.length
+
+  useEffect(() => {
+    void fetchApplicants().then(setApplicants).catch(() => undefined)
+  }, [setApplicants])
 
   return (
     <main className="min-h-screen bg-slate-50/60 text-black">

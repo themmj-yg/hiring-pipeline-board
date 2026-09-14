@@ -14,11 +14,26 @@ export type Applicant = {
 
 export const stages: Stage[] = ['Applied', 'Screening', 'Interview', 'Offer']
 
-export const applicants: Applicant[] = [
-  { id: 'ava', name: 'Ava Rodriguez', role: 'Product Designer', location: 'New York, NY', stage: 'Applied', initials: 'AR', accent: '#e9d5ff', applied: '2h ago', tags: ['Figma', 'Systems'] },
-  { id: 'liam', name: 'Liam Chen', role: 'Frontend Engineer', location: 'Austin, TX', stage: 'Applied', initials: 'LC', accent: '#bfdbfe', applied: '5h ago', tags: ['React', 'TypeScript'] },
-  { id: 'sophia', name: 'Sophia Patel', role: 'Product Manager', location: 'San Francisco, CA', stage: 'Screening', initials: 'SP', accent: '#fecdd3', applied: 'Yesterday', tags: ['B2B', 'Growth'] },
-  { id: 'noah', name: 'Noah Williams', role: 'Frontend Engineer', location: 'Seattle, WA', stage: 'Screening', initials: 'NW', accent: '#bbf7d0', applied: 'Yesterday', tags: ['React', 'GraphQL'] },
-  { id: 'mia', name: 'Mia Thompson', role: 'Product Designer', location: 'Chicago, IL', stage: 'Interview', initials: 'MT', accent: '#fed7aa', applied: 'Mon, Jun 17', tags: ['Research', 'Figma'] },
-  { id: 'ethan', name: 'Ethan Brown', role: 'Frontend Engineer', location: 'Boston, MA', stage: 'Offer', initials: 'EB', accent: '#fde68a', applied: 'Mon, Jun 17', tags: ['React', 'Testing'] },
-]
+const firstNames = ['Ava', 'Liam', 'Sophia', 'Noah', 'Mia', 'Ethan', 'Olivia', 'Lucas', 'Emma', 'Mateo']
+const lastNames = ['Rodriguez', 'Chen', 'Patel', 'Williams', 'Thompson', 'Brown', 'Garcia', 'Wilson', 'Kim', 'Davis']
+const roles = ['Product Designer', 'Frontend Engineer', 'Product Manager', 'UX Researcher']
+const locations = ['New York, NY', 'Austin, TX', 'San Francisco, CA', 'Seattle, WA', 'Chicago, IL', 'Boston, MA']
+const featuredNames = ['Ava Rodriguez', 'Liam Chen', 'Sophia Patel', 'Noah Williams', 'Mia Thompson', 'Ethan Brown']
+const featuredRoles = ['Product Designer', 'Frontend Engineer', 'Product Manager', 'Frontend Engineer', 'Product Designer', 'Frontend Engineer']
+
+export const applicants: Applicant[] = Array.from({ length: 200 }, (_, index) => {
+  const name = featuredNames[index] ?? `${firstNames[index % firstNames.length]} ${lastNames[Math.floor(index / firstNames.length) % lastNames.length]} ${index + 1}`
+  const role = featuredRoles[index] ?? roles[index % roles.length]
+  const initials = name.split(' ').map((part) => part[0]).join('')
+  return {
+    id: `applicant-${index + 1}`,
+    name,
+    role,
+    location: locations[index % locations.length],
+    stage: stages[index % stages.length],
+    initials,
+    accent: '#f1f5f9',
+    applied: `${(index % 28) + 1} days ago`,
+    tags: role === 'Frontend Engineer' ? ['React', 'TypeScript'] : role === 'Product Designer' ? ['Figma', 'Systems'] : role === 'Product Manager' ? ['B2B', 'Growth'] : ['Research', 'UX'],
+  }
+})
