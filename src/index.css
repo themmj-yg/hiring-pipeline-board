@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* 메인 브랜딩 테마 등록 */
+@theme {
+  --color-brand: #182432;
+  --color-brand-light: #233346;
+  --color-brand-dark: #0d151e;
+}
+
 :root {
   font-family: 'Avenir Next', 'Segoe UI', sans-serif;
   color: #2f2a25;
